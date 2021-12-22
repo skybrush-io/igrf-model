@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "igrf-model"
-version = "1.0.0"
+version = "1.1.0"
 description = "Pure Python implementation of the IGRF13 magnetic model"
 authors = ["Tamas Nepusz <ntamas@gmail.com>"]
 license = "MIT"
