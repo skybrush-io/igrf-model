@@ -3,15 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from importlib.resources import open_text
 from pathlib import Path
-from typing import ClassVar, Dict, IO, List, Optional, Tuple, Union
-from igrf_model.types import FractionalYearLike
-
-from igrf_model.utils import parse_datetime_or_fractional_year
+from typing import ClassVar, Dict, IO, List, Optional, Union
 
 from ._igrf13syn import igrf13syn, igrf13syn_with_precalculated_coeffs, InputType
+from .types import FractionalYearLike, IGRFModelCoefficients
+from .utils import parse_datetime_or_fractional_year
 from .vector import MagneticVector
 
-IGRFModelCoefficients = Tuple[List[List[float]], List[List[float]]]
+__all__ = ("IGRFModel", "DateBoundIGRFModel")
 
 _DATA_PACKAGE = __name__.rpartition(".")[0] + ".data"
 
