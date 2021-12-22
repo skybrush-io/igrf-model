@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import IntEnum
-from math import atan2, cos, radians, sin, sqrt
+from math import cos, radians, sin, sqrt
 from typing import Callable, Tuple, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -167,7 +167,7 @@ def igrf13syn(
         if m == 0:
             x = x + one * q[k - 1]
             z = z - (fn + 1.0) * one * p[k - 1]
-            l = l + 1
+            l = l + 1  # noqa: E741
         else:
             two = h[n][m] * rr
             three = one * cl[m - 1] + two * sl[m - 1]
@@ -177,7 +177,8 @@ def igrf13syn(
                 y = y + (one * sl[m - 1] - two * cl[m - 1]) * q[k - 1] * ct
             else:
                 y = y + (one * sl[m - 1] - two * cl[m - 1]) * fm * p[k - 1] / st
-            l = l + 2
+            l = l + 2  # noqa: E741
+
         m = m + 1
 
     # conversion to coordinate system specified by itype
