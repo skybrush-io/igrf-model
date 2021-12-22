@@ -2,13 +2,10 @@ from __future__ import annotations
 
 from enum import IntEnum
 from math import cos, radians, sin, sqrt
-from typing import Callable, Tuple, TYPE_CHECKING
+from typing import Callable, Tuple
 
-from .types import FractionalYearLike
+from .types import FractionalYearLike, IGRFModelCoefficients
 from .utils import parse_datetime_or_fractional_year
-
-if TYPE_CHECKING:
-    from .model import IGRFModelCoefficients  # pragma: no cover
 
 __all__ = ("igrf13syn", "igrf13syn_with_precalculated_coeffs", "InputType")
 
@@ -36,7 +33,7 @@ def igrf13syn(
     alt: float,
     lat: float,
     elong: float,
-    gh: Callable[[float], "IGRFModelCoefficients"],
+    gh: Callable[[float], IGRFModelCoefficients],
 ) -> Tuple[float, float, float]:
     """This is a synthesis routine for the 13th generation IGRF as agreed
     in December 2019 by IAGA Working Group V-MOD. It is valid 1900.0 to
