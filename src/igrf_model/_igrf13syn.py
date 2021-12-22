@@ -104,7 +104,6 @@ def igrf13syn(
     # Fortran uses colat*0.017453292 but this is more readable
     st, ct = sin_and_cos(radians(colat))
     sl[0], cl[0] = sin_and_cos(radians(elong))
-    l, m, n = 1, 1, 0
 
     if itype is InputType.GEODETIC:
         # conversion from geodetic to geocentric coordinates
@@ -133,51 +132,45 @@ def igrf13syn(
     q[0] = 0.0
     q[2] = ct
 
-    # fn, gn lifted here from the loop because they never change
-    fn, gn = n, n - 1
+    m, n = 1, 0
 
-    for k in range(2, kmx + 1):
+    for k in range(1, kmx):
         if n < m:
             m = 0
             n = n + 1
             rr = rr * ratio
-            fn = n
-            gn = n - 1
 
-        fm = m
         if m != n:
             gmm = m * m
-            one = sqrt(fn * fn - gmm)
-            two = sqrt(gn * gn - gmm) / one
-            three = (fn + gn) / one
+            one = sqrt(n * n - gmm)
+            two = sqrt((n - 1) * (n - 1) - gmm) / one
+            three = (2 * n - 1) / one
             i = k - n
             j = i - n + 1
-            p[k - 1] = three * ct * p[i - 1] - two * p[j - 1]
-            q[k - 1] = three * (ct * q[i - 1] - st * p[i - 1]) - two * q[j - 1]
-        elif k != 3:
-            one = sqrt(1.0 - 0.5 / fm)
+            p[k] = three * ct * p[i] - two * p[j]
+            q[k] = three * (ct * q[i] - st * p[i]) - two * q[j]
+        elif k != 2:
+            one = sqrt(1.0 - 0.5 / m)
             j = k - n - 1
-            p[k - 1] = one * st * p[j - 1]
-            q[k - 1] = one * (st * q[j - 1] + ct * p[j - 1])
+            p[k] = one * st * p[j]
+            q[k] = one * (st * q[j] + ct * p[j])
             cl[m - 1] = cl[m - 2] * cl[0] - sl[m - 2] * sl[0]
             sl[m - 1] = sl[m - 2] * cl[0] + cl[m - 2] * sl[0]
 
         # synthesis of x, y and z in geocentric coordinates
         one = g[n][m] * rr
         if m == 0:
-            x = x + one * q[k - 1]
-            z = z - (fn + 1.0) * one * p[k - 1]
-            l = l + 1  # noqa: E741
+            x = x + one * q[k]
+            z = z - (n + 1) * one * p[k]
         else:
             two = h[n][m] * rr
             three = one * cl[m - 1] + two * sl[m - 1]
-            x = x + three * q[k - 1]
-            z = z - (fn + 1.0) * three * p[k - 1]
+            x = x + three * q[k]
+            z = z - (n + 1) * three * p[k]
             if st == 0:
-                y = y + (one * sl[m - 1] - two * cl[m - 1]) * q[k - 1] * ct
+                y = y + (one * sl[m - 1] - two * cl[m - 1]) * q[k] * ct
             else:
-                y = y + (one * sl[m - 1] - two * cl[m - 1]) * fm * p[k - 1] / st
-            l = l + 2  # noqa: E741
+                y = y + (one * sl[m - 1] - two * cl[m - 1]) * m * p[k] / st
 
         m = m + 1
 
