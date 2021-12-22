@@ -6,6 +6,7 @@ repos:
       - id: check-ast
       - id: end-of-file-fixer
       - id: trailing-whitespace
+        exclude: ^src/igrf_model/data/
 
   - repo: https://github.com/psf/black
     rev: 21.5b1
