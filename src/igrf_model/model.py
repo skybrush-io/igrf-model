@@ -4,8 +4,11 @@ from datetime import datetime
 from importlib.resources import open_text
 from pathlib import Path
 from typing import ClassVar, Dict, IO, List, Optional, Tuple, Union
+from igrf_model.types import FractionalYearLike
 
-from ._igrf13syn import igrf13syn, InputType
+from igrf_model.utils import parse_datetime_or_fractional_year
+
+from ._igrf13syn import igrf13syn, igrf13syn_with_precalculated_coeffs, InputType
 from .vector import MagneticVector
 
 IGRFModelCoefficients = Tuple[List[List[float]], List[List[float]]]
@@ -59,13 +62,27 @@ class IGRFModel:
         # TODO(ntamas): calculate from self._table and self._min_year
         self._max_year = float(max_year)
 
+    def at(self, date: FractionalYearLike) -> DateBoundIGRFModel:
+        """Returns a date-bound IGRF model that evaluates the magnetic field
+        on the given date.
+
+        Parameters:
+            date: the (fractional) year to evaluate the model in; may also be a
+                standard Python datetime object. `None` means to use the current
+                date and time.
+
+        Returns:
+            the date-bound model
+        """
+        return DateBoundIGRFModel(self, date)
+
     def evaluate(
         self,
         lat: float,
         lon: float,
         alt: float = 0.0,
         *,
-        date: Optional[Union[float, datetime]] = None,
+        date: FractionalYearLike = None,
     ) -> MagneticVector:
         """Evaluates the model and calculates magnetic vector at the given latitude,
         longitude and altitude.
@@ -74,15 +91,13 @@ class IGRFModel:
             lat: the latitude (North is positive)
             lon: the longitude (East is positive)
             alt: the altitude above the WGS84 ellipsoid, in meters
-            year: the (fractional) year to evaluate the model in; may also be a
+            date: the (fractional) year to evaluate the model in; may also be a
                 standard Python datetime object. `None` means to use the current
                 date
 
         Returns:
             the magnetic vector
         """
-        if date is None:
-            date = datetime.now()
         return MagneticVector(
             *igrf13syn(
                 date,
@@ -93,6 +108,15 @@ class IGRFModel:
                 gh=self._get_coeffs_for_year,
             )
         )
+
+    def now(self) -> DateBoundIGRFModel:
+        """Returns a date-bound IGRF model that evaluates the magnetic field
+        on the current date.
+
+        Returns:
+            the date-bound model
+        """
+        return self.at(datetime.now())
 
     def _get_coeffs_for_year(self, date: float) -> IGRFModelCoefficients:
         """Returns the coefficients of the IGRF magnetic model in the given year.
@@ -158,3 +182,70 @@ class IGRFModel:
                     temp += 1
 
         return g, h
+
+
+class DateBoundIGRFModel:
+    """IGRF model instance that calculates the magnetic field at a single
+    given date.
+
+    This model class is more efficient if you want to evaluate the model on
+    the same day at multiple points as the model coefficients are pre-calculated
+    once and re-used later.
+    """
+
+    _coeffs: Optional[IGRFModelCoefficients]
+    _date: float
+    _parent: IGRFModel
+
+    def __init__(self, parent: IGRFModel, date: FractionalYearLike = None):
+        """Constructor.
+
+        Parameters:
+            parent: the IGRF model that this date-bound model is based on
+            date: the date to bind the model to, expressed as a Python datetime
+                object or a fractional year. `None` means to use the current
+                date and time.
+        """
+        self._date = parse_datetime_or_fractional_year(date)
+        self._coeffs = None
+        self._parent = parent
+
+    @property
+    def date(self) -> float:
+        """The date that the model is bound to, expressed as a fractional year."""
+        return self._date
+
+    def evaluate(
+        self,
+        lat: float,
+        lon: float,
+        alt: float = 0.0,
+    ) -> MagneticVector:
+        """Evaluates the model and calculates magnetic vector at the given latitude,
+        longitude and altitude.
+
+        Parameters:
+            lat: the latitude (North is positive)
+            lon: the longitude (East is positive)
+            alt: the altitude above the WGS84 ellipsoid, in meters
+            date: the (fractional) year to evaluate the model in; may also be a
+                standard Python datetime object. `None` means to use the current
+                date
+
+        Returns:
+            the magnetic vector
+        """
+        if self._coeffs is None:
+            self._coeffs = self._parent._get_coeffs_for_year(
+                parse_datetime_or_fractional_year(self._date)
+            )
+
+        return MagneticVector(
+            *igrf13syn_with_precalculated_coeffs(
+                self._coeffs,
+                InputType.GEODETIC,
+                alt / 1000.0,
+                lat,
+                lon,
+            )
+        )

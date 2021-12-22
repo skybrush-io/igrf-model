@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from datetime import date, datetime
 from enum import IntEnum
 from math import cos, radians, sin, sqrt
-from typing import Callable, Tuple, Union, TYPE_CHECKING
+from typing import Callable, Tuple, TYPE_CHECKING
+
+from .types import FractionalYearLike
+from .utils import parse_datetime_or_fractional_year
 
 if TYPE_CHECKING:
     from .model import IGRFModelCoefficients  # pragma: no cover
+
+__all__ = ("igrf13syn", "igrf13syn_with_precalculated_coeffs", "InputType")
 
 
 class InputType(IntEnum):
@@ -21,26 +25,18 @@ class InputType(IntEnum):
     """Geocentric coordinates."""
 
 
-def datetime_to_fractional_year(input: datetime) -> float:
-    """Converts a Python datetime object to a fractional year."""
-    start = date(input.year, 1, 1).toordinal()  # type: ignore
-    year_length = date(input.year + 1, 1, 1).toordinal() - start  # type: ignore
-    return input.year + (input.toordinal() - start) / year_length
-
-
 def sin_and_cos(radians: float) -> Tuple[float, float]:
     """Helper function to compute the sine and cosine of an angle simultaneously."""
     return sin(radians), cos(radians)
 
 
 def igrf13syn(
-    date: Union[datetime, float],
+    date: FractionalYearLike,
     itype: InputType,
     alt: float,
     lat: float,
     elong: float,
-    *,
-    gh: Callable[[float], "IGRFModelCoefficients"]
+    gh: Callable[[float], "IGRFModelCoefficients"],
 ) -> Tuple[float, float, float]:
     """This is a synthesis routine for the 13th generation IGRF as agreed
     in December 2019 by IAGA Working Group V-MOD. It is valid 1900.0 to
@@ -51,7 +47,7 @@ def igrf13syn(
         date: year A.D. Must be greater than or equal to 1900.0 and
             less than or equal to 2030.0. May be fractional. You can also
             provide a standard Python datetime object here; it will be converted
-            appropriately.
+            appropriately. `None` means to use the current date and time.
         itype: whether the input coordinates are geodetic or geocentric. Use
             the constants from the InputType enum for clarity.
         alt: height in km above sea level if itype = 1; distance from centre of
@@ -67,8 +63,10 @@ def igrf13syn(
 
     This function was converted from the Fortran IGRF13SYN function from
     https://github.com/space-physics/igrf/blob/main/src/igrf/fortran/igrf13.f .
-    Its interface was modified slightly to be more Pythonic. The comments
-    below are from the original Fortran implementation:
+    Its interface was modified slightly to be more Pythonic and to cater for the
+    common use-case when multiple points are evaluated at the same date (that is
+    why the function can take the IGRF model coefficients at a given date
+    directly). The comments below are from the original Fortran implementation:
 
     Adapted from 8th generation version to include new maximum degree for
     main-field models for 2000.0 and onwards and use WGS84 spheroid instead
@@ -83,15 +81,61 @@ def igrf13syn(
     to even) included as these are the coefficients published in Excel
     spreadsheet July 2005.
     """
-    if not isinstance(date, (int, float)):
-        date = datetime_to_fractional_year(date)
-    else:
-        date = float(date)
+    coeffs = gh(parse_datetime_or_fractional_year(date))
+    return igrf13syn_with_precalculated_coeffs(coeffs, itype, alt, lat, elong)
 
-    g, h = gh(date)
+
+def igrf13syn_with_precalculated_coeffs(
+    coeffs: IGRFModelCoefficients,
+    itype: InputType,
+    alt: float,
+    lat: float,
+    elong: float,
+) -> Tuple[float, float, float]:
+    """This is a synthesis routine for the 13th generation IGRF as agreed
+    in December 2019 by IAGA Working Group V-MOD. It is valid 1900.0 to
+    2025.0 inclusive. Values for dates from 1945.0 to 2015.0 inclusive are
+    definitive, otherwise they are non-definitive.
+
+    Parameters:
+        coeffs: the IGRF model coefficients for the date that the caller is
+            interested in. Use `igrf13syn()` instead if you have a date.
+        itype: whether the input coordinates are geodetic or geocentric. Use
+            the constants from the InputType enum for clarity.
+        alt: height in km above sea level if itype = 1; distance from centre of
+            Earth in km if itype = 2 (>3485 km)
+        lat: latitude (-90 to 90)
+        elong: east-longitude (0-360)
+
+    Returns:
+        a tuple consisting of the North, East and vertical components (+ve down)
+        of the magnetic vector (in nT)
+
+    This function was converted from the Fortran IGRF13SYN function from
+    https://github.com/space-physics/igrf/blob/main/src/igrf/fortran/igrf13.f .
+    Its interface was modified slightly to be more Pythonic and to cater for the
+    common use-case when multiple points are evaluated at the same date (that is
+    why the function can take the IGRF model coefficients at a given date
+    directly). The comments below are from the original Fortran implementation:
+
+    Adapted from 8th generation version to include new maximum degree for
+    main-field models for 2000.0 and onwards and use WGS84 spheroid instead
+    of International Astronomical Union 1966 spheroid as recommended by IAGA
+    in July 2003. Reference radius remains as 6371.2 km - it is NOT the mean
+    radius (= 6371.0 km) but 6371.2 km is what is used in determining the
+    coefficients. Adaptation by Susan Macmillan, August 2003 (for
+    9th generation), December 2004, December 2009, December 2014;
+    by William Brown, December 2019, February 2020.
+
+    Coefficients at 1995.0 incorrectly rounded (rounded up instead of
+    to even) included as these are the coefficients published in Excel
+    spreadsheet July 2005.
+    """
 
     p, q, cl, sl = [0.0] * 105, [0.0] * 105, [0.0] * 13, [0.0] * 13
     x, y, z = 0.0, 0.0, 0.0
+
+    g, h = coeffs
 
     nmx = len(g) - 1
     kmx = (nmx + 1) * (nmx + 2) // 2
