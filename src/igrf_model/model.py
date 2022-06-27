@@ -95,7 +95,7 @@ class IGRFModel:
                 date
 
         Returns:
-            the magnetic vector
+            the magnetic vector, in nT
         """
         return MagneticVector(
             *igrf13syn(
@@ -232,7 +232,7 @@ class DateBoundIGRFModel:
                 date
 
         Returns:
-            the magnetic vector
+            the magnetic vector, in nT
         """
         if self._coeffs is None:
             self._coeffs = self._parent._get_coeffs_for_year(
