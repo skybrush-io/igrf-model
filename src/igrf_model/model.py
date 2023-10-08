@@ -47,7 +47,7 @@ class IGRFModel:
             try:
                 fp = open_text(_DATA_PACKAGE, f"igrf{version}.txt")
             except Exception:
-                raise ValueError(f"unsupported model version: {version}")
+                raise ValueError(f"unsupported model version: {version}") from None
             with fp:
                 instance = cls.from_io(fp)
             cls._cache[version] = instance
